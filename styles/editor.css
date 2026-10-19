@@ -1,0 +1,145 @@
+/* ==========================================================================
+   editor.css — Editor de 3 partes: título, descripción y contenido
+   Única familia declarada en este archivo: monoespaciada, para el campo de
+   contenido (la capa de formato y la escritura comparten las mismas medidas).
+   ========================================================================== */
+
+.editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px clamp(14px, 4vw, 56px) 32px;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+}
+.editor :focus-visible { outline-color: var(--color-foco-zona); }
+
+/* ---------- Estado vacío ---------- */
+.vacio { margin: auto; text-align: center; }
+.vacio__texto { margin: 0 0 16px; color: var(--color-texto-suave); }
+
+/* ---------- Nota ---------- */
+.nota {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.nota--entra { animation: nota-entra 0.18s ease-out; }
+@keyframes nota-entra {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.nota__estado { margin: 0; min-height: 1.3em; font-size: 0.8rem; color: var(--color-texto-suave); }
+
+/* Título: campo grande y destacado */
+.nota__titulo {
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  transition: border-color var(--transicion);
+}
+.nota__titulo:focus { outline: none; border-bottom-color: var(--color-borde); }
+
+/* Descripción: campo secundario */
+.nota__descripcion {
+  width: 100%;
+  padding: 4px 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--color-borde);
+  background: transparent;
+  font-size: 1rem;
+  color: var(--color-texto-suave);
+  transition: border-color var(--transicion);
+}
+.nota__descripcion:focus { outline: none; border-bottom-color: var(--color-foco-zona); }
+.nota__titulo::placeholder,
+.nota__descripcion::placeholder { color: var(--color-texto-suave); opacity: 0.6; }
+
+/* ---------- Contenido: un solo campo con formato en vivo ---------- */
+.contenido {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-top: 6px;
+  border: 1px solid var(--color-borde);
+  border-radius: 8px;
+  transition: border-color var(--transicion);
+}
+.contenido:focus-within { border-color: var(--color-foco-zona); }
+
+/* La capa y el textarea comparten tipografía, medidas y ajuste de línea */
+.contenido__capa,
+.contenido__texto {
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  font-family: sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.7;
+  letter-spacing: 0;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  font-variant-ligatures: none;
+}
+
+/* Capa visible: muestra el formato aplicado por el parser */
+.contenido__capa {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--color-texto);
+}
+.contenido__capa strong { font-weight: 700; }
+.contenido__capa em { font-style: italic; }
+.contenido__capa del { color: var(--color-texto-suave); text-decoration: line-through; }
+.contenido__capa code { border-radius: 3px; background: var(--color-codigo); }
+.contenido__capa .marca { color: var(--color-texto-suave); font-style: normal; font-weight: 400; opacity: 0.6; }
+
+/* Textarea: recibe la escritura; su texto es transparente y se ve el de la capa */
+.contenido__texto {
+  position: relative;
+  display: block;
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: 50vh;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--color-texto);
+}
+.contenido__texto:focus { outline: none; }
+.contenido__texto::selection {
+  background: rgba(74, 224, 254, 0.4);
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.contenido__texto::placeholder {
+  color: var(--color-texto-suave);
+  -webkit-text-fill-color: var(--color-texto-suave);
+  opacity: 0.7;
+}
+
+.nota__ayuda { margin: 4px 0 0; font-size: 0.8rem; color: var(--color-texto-suave); }
+
+/* ---------- Pantallas pequeñas ---------- */
+@media (max-width: 720px) {
+  .editor { padding-top: 16px; }
+  .contenido__texto { min-height: 40vh; }
+}

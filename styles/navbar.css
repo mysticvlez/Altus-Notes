@@ -1,0 +1,321 @@
+/* ==========================================================================
+   navbar.css — Barra lateral, barra superior, menús y pie de página
+   Este archivo no declara familia tipográfica: hereda la de main.css.
+   ========================================================================== */
+
+/* ---------- Barra lateral: por encima de todo (z-index superior) ---------- */
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 60;
+  width: var(--ancho-sidebar);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-barra);
+  color: #fff;
+  border-right: 1px solid var(--color-barra-borde);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Logotipo (imagen enlazada que recarga la página) */
+.logo {
+  display: block;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--color-barra-borde);
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+.logo__img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 56px;
+  margin-left: 20px;    
+}
+
+/* ---------- Espacios (nivel 1 de pestañas) ---------- */
+.espacios { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 10px; }
+.espacios__titulo {
+  margin: 0 10px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.8;
+}
+.espacios__lista { position: relative; margin: 0; padding: 0; list-style: none; }
+
+.espacio {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-height: 48px;
+  border-radius: var(--radio);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.espacio:hover { background: var(--color-barra-hover); }
+.espacio--activo,
+.espacio--activo:hover {
+  background: var(--color-barra-activa);
+  box-shadow: inset 3px 0 0 var(--color-secundario);
+}
+
+.espacio__principal {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 6px 8px 12px;
+  border: 0;
+  border-radius: var(--radio) 0 0 var(--radio);
+  background: transparent;
+  color: #fff;
+  text-align: left;
+}
+.espacio__nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.espacio--activo .espacio__nombre { font-weight: 600; }
+.espacio__cuenta { font-size: 0.8rem; opacity: 0.8; }
+
+/* Botón de tres puntos: visible al pasar el cursor, en el activo y siempre en táctil */
+.espacio__menu {
+  flex: 0 0 38px;
+  height: 44px;
+  border: 0;
+  border-radius: 0 var(--radio) var(--radio) 0;
+  background: transparent;
+  color: #fff;
+  font-size: 1.15rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--transicion), background-color var(--transicion);
+}
+.espacio:hover .espacio__menu,
+.espacio--activo .espacio__menu,
+.espacio__menu:focus-visible,
+.espacio__menu[aria-expanded='true'] { opacity: 1; }
+.espacio__menu:hover { background: var(--color-barra-hover); }
+@media (hover: none) {
+  .espacio__menu { opacity: 1; }
+}
+
+/* Mientras se renombra, solo se ve el campo de texto */
+.en-renombrado > :not(.renombrar) { display: none; }
+.espacio.en-renombrado { min-height: 44px; }
+
+/* Botón para crear un espacio, justo debajo del último */
+.espacios__nuevo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: 1px dashed var(--color-barra-borde);
+  border-radius: var(--radio);
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  transition: background-color var(--transicion), border-color var(--transicion);
+}
+.espacios__nuevo:hover { background: var(--color-barra-hover); border-color: var(--color-secundario); }
+
+/* ---------- Pie de la barra lateral: configuración ---------- */
+.sidebar__pie { padding: 10px; border-top: 1px solid var(--color-barra-borde); }
+.sidebar__config {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radio);
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  transition: background-color var(--transicion);
+}
+.sidebar__config:hover { background: var(--color-barra-hover); }
+
+/* ---------- Asa para ajustar el ancho ---------- */
+.sidebar__asa {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 2;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar__asa::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--color-secundario);
+  opacity: 0;
+  transition: opacity var(--transicion);
+}
+.sidebar__asa:hover::after,
+.sidebar__asa:focus-visible::after,
+.sidebar__asa--activa::after { opacity: 0.85; }
+.sidebar__asa:focus-visible { outline: none; }
+
+/* ---------- Barra superior ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30; /* por debajo de la barra lateral */
+  background: var(--color-barra);
+  color: #fff;
+  padding-top: env(safe-area-inset-top);
+}
+.topbar__acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--color-barra-borde);
+}
+.topbar__usuario {
+  margin-left: 8px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+/* Botones de la barra */
+.boton-barra {
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-barra-borde);
+  border-radius: var(--radio);
+  background: transparent;
+  color: #fff;
+  font-size: 0.875rem;
+  transition: background-color var(--transicion);
+}
+.boton-barra:hover,
+.boton-barra[aria-expanded='true'] { background: var(--color-barra-activa); }
+
+/* Botón que abre los espacios: solo en pantallas pequeñas */
+.boton-barra--espacios { display: none; }
+
+/* ---------- Menús desplegables (Archivo y menús flotantes) ---------- */
+.menu-archivo { position: relative; }
+.menu-lista {
+  z-index: 80;
+  min-width: 200px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--color-menu);
+  border: 1px solid var(--color-barra-borde);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #fff;
+  animation: menu-entra 0.12s ease-out;
+}
+.menu-archivo__lista { position: absolute; top: calc(100% + 6px); left: 0; }
+.menu-flotante { position: fixed; top: 0; left: 0; }
+
+@keyframes menu-entra {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  font-size: 0.9rem;
+  transition: background-color var(--transicion);
+}
+.menu-item:hover:not(:disabled) { background: var(--color-barra-activa); }
+.menu-item--peligro:hover:not(:disabled) { background: rgba(255, 90, 110, 0.3); }
+.menu-item:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------- Pie de página discreto ---------- */
+.pie {
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-barra-borde);
+  background: var(--color-barra);
+  color: #fff;
+  text-align: center;
+  font-size: 0.75rem;
+}
+.pie p { margin: 0; }
+
+/* ---------- Velo para la barra lateral en móvil ---------- */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(6, 24, 29, 0.6);
+  animation: velo-entra 0.2s ease-out;
+}
+
+/* ---------- Animaciones de los espacios ---------- */
+.espacio--entrando { overflow: hidden; animation: espacio-entra 0.2s ease-out both; }
+.espacio--saliendo { overflow: hidden; pointer-events: none; animation: espacio-sale 0.2s ease-in both; }
+@keyframes espacio-entra {
+  from { max-height: 0; opacity: 0; }
+  to { max-height: 48px; opacity: 1; }
+}
+@keyframes espacio-sale {
+  from { max-height: 48px; opacity: 1; }
+  to { max-height: 0; opacity: 0; }
+}
+
+/* ---------- Arrastre (espacios y pestañas) ---------- */
+.arrastrando {
+  position: relative;
+  z-index: 5;
+  background: var(--color-menu);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  cursor: grabbing;
+  transition: none !important;
+}
+.asentando { position: relative; z-index: 5; }
+body.arrastre-activo { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+
+/* ---------- Pantallas pequeñas: la barra lateral se vuelve un cajón ---------- */
+@media (max-width: 720px) {
+  .sidebar {
+    width: min(86vw, 320px);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0s linear 0.22s;
+  }
+  body.sidebar-abierta .sidebar {
+    transform: none;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  .sidebar__asa { display: none; }
+  .boton-barra--espacios { display: inline-block; }
+  .topbar__usuario { display: none; }
+  .topbar__acciones { padding: 0 12px; }
+  .pie { font-size: 0.7rem; }
+}

@@ -1,0 +1,146 @@
+/* ==========================================================================
+   tabs.css — Pestañas de notas (nivel 2) dentro de la barra superior
+   Este archivo no declara familia tipográfica: hereda la de main.css.
+   ========================================================================== */
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 48px;
+  padding: 0 12px;
+}
+
+/* Botones de la barra de pestañas: menú, flechas y nueva nota */
+.tabs__boton {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 3px;
+  border: 0;
+  border-radius: var(--radio);
+  background: transparent;
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: background-color var(--transicion), opacity var(--transicion);
+}
+.tabs__boton:hover:not(:disabled),
+.tabs__boton[aria-expanded='true'] { background: var(--color-barra-activa); }
+.tabs__boton:disabled { opacity: 0.3; cursor: default; }
+
+/* Lista de pestañas: crece con su contenido hasta llenar el espacio disponible */
+.tabs__lista {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tabs__lista::-webkit-scrollbar { display: none; }
+
+/* Pestaña individual: todas del mismo tamaño */
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 var(--ancho-tab);
+  width: var(--ancho-tab);
+  max-width: var(--ancho-tab);
+  height: 42px;
+  border-bottom: 3px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.tab:hover { background: var(--color-barra-hover); }
+.tab--activa,
+.tab--activa:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-bottom-color: var(--color-secundario);
+}
+
+.tab__principal {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 4px 0 14px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 0.875rem;
+  text-align: left;
+}
+.tab--activa .tab__principal { font-weight: 600; }
+.tab__titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Menú de la pestaña: visible al pasar el cursor, en la activa y con el foco */
+.tab__menu {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0;
+  transition: background-color var(--transicion), opacity var(--transicion);
+}
+.tab:hover .tab__menu,
+.tab--activa .tab__menu,
+.tab__menu:focus-visible,
+.tab__menu[aria-expanded='true'] { opacity: 1; }
+.tab__menu:hover { background: rgba(255, 255, 255, 0.2); }
+@media (hover: none) {
+  .tab:not(.tab--activa) .tab__menu { display: none; }
+}
+
+/* Cerrar (borrar) la nota */
+.tab__cerrar {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  margin-right: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0.8;
+  transition: background-color var(--transicion), opacity var(--transicion);
+}
+.tab__cerrar:hover { background: rgba(255, 255, 255, 0.2); opacity: 1; }
+
+/* Mientras se renombra, solo se ve el campo de texto */
+.tab.en-renombrado { padding-left: 6px; }
+
+/* ---------- Animaciones de las pestañas ---------- */
+.tab--entrando { overflow: hidden; animation: tab-entra 0.2s ease-out both; }
+.tab--saliendo { overflow: hidden; pointer-events: none; animation: tab-sale 0.2s ease-in both; }
+@keyframes tab-entra {
+  from { flex-basis: 0; width: 0; max-width: 0; opacity: 0; }
+  to { flex-basis: var(--ancho-tab); width: var(--ancho-tab); max-width: var(--ancho-tab); opacity: 1; }
+}
+@keyframes tab-sale {
+  from { flex-basis: var(--ancho-tab); width: var(--ancho-tab); max-width: var(--ancho-tab); opacity: 1; }
+  to { flex-basis: 0; width: 0; max-width: 0; opacity: 0; }
+}
+
+/* ---------- Pantallas pequeñas ---------- */
+@media (max-width: 720px) {
+  .tabs { padding: 0 8px; gap: 2px; }
+  .tabs__boton { width: 40px; height: 40px; margin-bottom: 2px; }
+}

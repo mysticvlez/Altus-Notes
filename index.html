@@ -1,0 +1,283 @@
+<!--
+  PROYECTO: Altus Notes - Aplicación Web Minimalista, Privada y Open-Source
+  AUTOR: MysticVlez (E. Villegas)
+  DESCRIPCIÓN: Código fuente protegido y modular para gestión de notas seguras.
+  ADVERTENCIA: Este software es de código abierto. Utilizar con precaución y
+  respetar las normativas de privacidad y auditoría de la comunidad.
+  REPOSITORIO: Visita https://github.com/mysticvlez para más proyectos.
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1c5561">
+  <title>Altus Notes</title>
+  <meta name="description" content="Altus Notes: notas minimalistas, seguras y orientadas a la privacidad.">
+
+  <!--
+    Política de seguridad de contenido (CSP):
+    solo se permite código propio y los dominios mínimos que necesita Firebase.
+    Si algún servicio de Firebase fallara, revisa la consola del navegador
+    y amplía únicamente el dominio bloqueado.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseapp.com; base-uri 'none'; form-action 'none'">
+
+  <!-- Ícono de la pestaña del navegador -->
+  <link rel="icon" type="image/png" href="altusnoteslogo.png_pestaña.png">
+
+  <!--
+    Tipografías: Manrope (interfaz) y JetBrains Mono (campo de contenido).
+    Para máxima privacidad puedes descargar los .woff2 y servirlos localmente.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;800&family=JetBrains+Mono:wght@400;700&display=swap">
+
+  <!-- Hojas de estilo propias, una por responsabilidad -->
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/navbar.css">
+  <link rel="stylesheet" href="styles/tabs.css">
+  <link rel="stylesheet" href="styles/editor.css">
+
+  <!-- Punto de entrada de la aplicación (módulo ES6) -->
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+
+  <!-- Velo que cubre la página cuando la barra lateral se abre en móvil -->
+  <div class="velo" id="velo" hidden></div>
+
+  <!-- ============ BARRA LATERAL IZQUIERDA: logotipo, espacios y configuración ============ -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- El logotipo recarga la página al pulsarlo -->
+    <a class="logo" href="" title="Recargar Altus Notes" aria-label="Altus Notes: recargar la página">
+      <img class="logo__img" src="altusnoteslogo.png" alt="Altus Notes">
+    </a>
+
+    <!-- Espacios (categorías): lista dinámica que rellena ui.js -->
+    <nav class="espacios notranslate" aria-label="Espacios" translate="no">
+      <h2 class="espacios__titulo">Espacios</h2>
+      <ul class="espacios__lista" id="lista-espacios"></ul>
+      <button type="button" class="espacios__nuevo" id="btn-nuevo-espacio">
+        <span aria-hidden="true">+</span> Nuevo Espacio
+      </button>
+    </nav>
+
+    <!-- Configuración de la cuenta -->
+    <div class="sidebar__pie">
+      <button type="button" class="sidebar__config" id="btn-config">
+        <span class="icono" aria-hidden="true">⚙︎</span> Configuración
+      </button>
+    </div>
+
+    <!-- Asa para ajustar el ancho de la barra -->
+    <div class="sidebar__asa" id="asa-sidebar" role="separator" aria-orientation="vertical"
+         aria-label="Ajustar el ancho de la barra lateral" aria-valuemin="200" aria-valuemax="420" aria-valuenow="248" tabindex="0"></div>
+  </aside>
+
+  <!-- ============ ÁREA PRINCIPAL ============ -->
+  <div class="principal">
+
+    <!-- Barra superior: acciones (Espacios en móvil, Archivo, acceso) + pestañas de notas -->
+    <header class="topbar">
+      <div class="topbar__acciones">
+
+        <!-- Abre la barra lateral en pantallas pequeñas -->
+        <button type="button" class="boton-barra boton-barra--espacios" id="btn-espacios" aria-controls="sidebar" aria-expanded="false">
+          <span aria-hidden="true">☰</span> Espacios
+        </button>
+
+        <!-- Menú Archivo -->
+        <div class="menu-archivo">
+          <button type="button" class="boton-barra" id="btn-archivo" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-archivo">
+            Archivo <span aria-hidden="true">▾</span>
+          </button>
+          <ul class="menu-lista menu-archivo__lista" id="menu-archivo" role="menu" hidden>
+            <li role="none"><button type="button" role="menuitem" class="menu-item" id="op-abrir">Abrir</button></li>
+            <li role="none"><button type="button" role="menuitem" class="menu-item" id="op-guardar" disabled>Guardar</button></li>
+            <li role="none"><button type="button" role="menuitem" class="menu-item" id="op-guardar-como">Guardar como…</button></li>
+          </ul>
+        </div>
+
+        <!-- Acceso / registro -->
+        <button type="button" class="boton-barra" id="btn-auth">Acceder</button>
+        <span class="topbar__usuario" id="texto-usuario"></span>
+      </div>
+
+      <!-- Pestañas de las notas del espacio activo -->
+      <nav class="tabs notranslate" aria-label="Notas del espacio" translate="no">
+        <button type="button" class="tabs__boton" id="tabs-izq" aria-label="Pestañas anteriores" hidden>‹</button>
+        <div class="tabs__lista" id="lista-tabs" role="tablist"></div>
+        <button type="button" class="tabs__boton" id="tabs-der" aria-label="Pestañas siguientes" hidden>›</button>
+        <button type="button" class="tabs__boton tabs__nueva" id="btn-nueva-nota" aria-label="Nueva nota" title="Nueva nota">+</button>
+      </nav>
+    </header>
+
+    <!-- Editor de la nota activa -->
+    <main class="editor" id="editor">
+
+      <!-- Estado vacío: sin notas en el espacio -->
+      <section class="vacio" id="estado-vacio" hidden>
+        <p class="vacio__texto">Este espacio aún no tiene notas.</p>
+        <button type="button" class="boton-primario" id="btn-vacio-nueva">Crear nota</button>
+      </section>
+
+      <!-- Nota: título + descripción + contenido (el texto del usuario nunca se traduce) -->
+      <article class="nota notranslate" id="nota" hidden translate="no">
+        <p class="nota__estado" id="estado-guardado" role="status"></p>
+
+        <label class="sr-only" for="nota-titulo">Título</label>
+        <input id="nota-titulo" class="nota__titulo" type="text" maxlength="200" placeholder="Título" autocomplete="off">
+
+        <label class="sr-only" for="nota-descripcion">Descripción</label>
+        <input id="nota-descripcion" class="nota__descripcion" type="text" maxlength="500" placeholder="Descripción breve" autocomplete="off">
+
+        <!-- Campo único: la capa muestra el formato en vivo y el textarea recibe la escritura -->
+        <div class="contenido">
+          <pre class="contenido__capa" id="nota-capa" aria-hidden="true"></pre>
+          <label class="sr-only" for="nota-contenido">Contenido</label>
+          <textarea id="nota-contenido" class="contenido__texto" maxlength="200000" spellcheck="true" placeholder="Escribe aquí…"></textarea>
+        </div>
+
+        <p class="nota__ayuda">Formato: *negrita* · _cursiva_ · ~tachado~ · ```monoespaciado```</p>
+      </article>
+    </main>
+
+    <!-- Pie de página discreto -->
+    <footer class="pie">
+      <p>Diseñado y desarrollado por E. Villegas (MysticVlez) --- Código Abierto y Enfocado en Privacidad --- Mira más de mi repositorio en: <a href="https://github.com/mysticvlez" target="_blank" style="color: white; font-weight: bold;">GitHub</a></p>
+    </footer>
+  </div>
+
+  <!-- Menú flotante de espacios y notas (se coloca junto al botón que lo abre) -->
+  <ul class="menu-lista menu-flotante" id="menu-contextual" role="menu" hidden></ul>
+
+  <!-- ============ DIÁLOGO DE ACCESO / REGISTRO ============ -->
+  <dialog class="dialogo" id="dialogo-auth" aria-labelledby="auth-titulo">
+    <form id="form-auth" novalidate>
+      <h2 id="auth-titulo" class="dialogo__titulo">Acceder</h2>
+
+      <label class="campo" for="auth-email">Correo electrónico</label>
+      <input id="auth-email" name="email" type="email" autocomplete="username" inputmode="email" required>
+
+      <label class="campo" for="auth-password">Contraseña</label>
+      <div class="clave">
+        <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="6" required>
+        <button type="button" class="clave__ojo" data-ver-clave="auth-password" aria-label="Mostrar contraseña" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="clave__tachar" d="M4 4l16 16"/></svg>
+        </button>
+      </div>
+
+      <!-- Solo en el registro: confirmación y advertencia (aparece con transición) -->
+      <div class="auth-extra" id="auth-extra" inert>
+        <div class="auth-extra__interior">
+          <label class="campo" for="auth-confirmar">Confirmar contraseña</label>
+          <div class="clave">
+            <input id="auth-confirmar" name="confirmar" type="password" autocomplete="new-password" minlength="6">
+            <button type="button" class="clave__ojo" data-ver-clave="auth-confirmar" aria-label="Mostrar contraseña" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="clave__tachar" d="M4 4l16 16"/></svg>
+            </button>
+          </div>
+          <p class="dialogo__advertencia">
+            Recuerda tu contraseña: por seguridad no podrás cambiar tu correo ni tu contraseña en el futuro.
+            Si ya no quieres tu cuenta, podrás borrarla desde Configuración.
+          </p>
+        </div>
+      </div>
+
+      <p class="dialogo__error" id="auth-error" role="alert" hidden></p>
+
+      <div class="dialogo__acciones">
+        <button type="button" class="boton-sutil" id="auth-cancelar">Cancelar</button>
+        <button type="submit" class="boton-primario" id="auth-enviar">Entrar</button>
+      </div>
+      <button type="button" class="enlace" id="auth-alternar">¿No tienes cuenta? Regístrate</button>
+    </form>
+  </dialog>
+
+  <!-- ============ DIÁLOGO DE CONFIGURACIÓN ============ -->
+  <dialog class="dialogo" id="dialogo-config" aria-labelledby="config-titulo">
+    <h2 id="config-titulo" class="dialogo__titulo">Configuración</h2>
+
+    <!-- Sin sesión iniciada -->
+    <div id="config-invitado" hidden>
+      <p class="dialogo__texto">Aún no has iniciado sesión. Tus notas solo existen en esta sesión del navegador.</p>
+      <button type="button" class="boton-primario" id="config-acceder">Acceder</button>
+    </div>
+
+    <!-- Con sesión iniciada -->
+    <div id="config-cuenta" hidden>
+      <label class="campo" for="config-email">Correo electrónico</label>
+      <input id="config-email" type="email" readonly>
+
+      <label class="campo" for="config-password">Contraseña</label>
+      <div class="clave">
+        <input id="config-password" type="password" placeholder="••••••••" readonly>
+        <button type="button" class="clave__ojo" id="config-ojo" data-ver-clave="config-password" aria-label="Mostrar contraseña" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="clave__tachar" d="M4 4l16 16"/></svg>
+        </button>
+      </div>
+      <p class="dialogo__texto dialogo__texto--suave" id="config-nota-clave" hidden>
+        Por seguridad tu contraseña no se almacena. Solo puede mostrarse si iniciaste sesión en esta misma pestaña.
+      </p>
+
+      <div class="zona-peligro">
+        <h3 class="zona-peligro__titulo">Zona de peligro</h3>
+        <p class="dialogo__texto">Borrar tu cuenta elimina de forma permanente tu acceso y todas tus notas.</p>
+        <button type="button" class="boton-peligro" id="config-borrar">Borrar cuenta</button>
+      </div>
+    </div>
+
+    <div class="dialogo__acciones">
+      <button type="button" class="boton-sutil" id="config-cerrar">Cerrar</button>
+    </div>
+  </dialog>
+
+  <!-- ============ DIÁLOGO PARA BORRAR LA CUENTA ============ -->
+  <dialog class="dialogo" id="dialogo-borrar" aria-labelledby="borrar-titulo">
+    <form id="form-borrar" novalidate>
+      <h2 id="borrar-titulo" class="dialogo__titulo">Borrar cuenta</h2>
+      <p class="dialogo__texto">Esta acción es permanente: se eliminarán tu cuenta y todas tus notas, y no se podrán recuperar.</p>
+      <p class="dialogo__texto">Para confirmar, escribe este código de 6 dígitos:</p>
+      <p class="codigo" id="borrar-codigo" aria-live="polite">000000</p>
+
+      <label class="campo" for="borrar-entrada">Código</label>
+      <input id="borrar-entrada" type="text" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" required>
+
+      <!-- Solo si la contraseña no está disponible en esta pestaña -->
+      <div id="borrar-clave-caja" hidden>
+        <label class="campo" for="borrar-password">Contraseña</label>
+        <div class="clave">
+          <input id="borrar-password" type="password" autocomplete="current-password">
+          <button type="button" class="clave__ojo" data-ver-clave="borrar-password" aria-label="Mostrar contraseña" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="clave__tachar" d="M4 4l16 16"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <p class="dialogo__error" id="borrar-error" role="alert" hidden></p>
+
+      <div class="dialogo__acciones">
+        <button type="button" class="boton-sutil" id="borrar-cancelar">Cancelar</button>
+        <button type="submit" class="boton-peligro" id="borrar-confirmar" disabled>Borrar para siempre</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ DIÁLOGO DE CONFIRMACIÓN GENÉRICO ============ -->
+  <dialog class="dialogo" id="dialogo-confirmar" aria-labelledby="confirmar-titulo">
+    <h2 id="confirmar-titulo" class="dialogo__titulo"></h2>
+    <p class="dialogo__texto" id="confirmar-texto"></p>
+    <div class="dialogo__acciones">
+      <button type="button" class="boton-sutil" id="confirmar-no">Cancelar</button>
+      <button type="button" class="boton-peligro" id="confirmar-si">Eliminar</button>
+    </div>
+  </dialog>
+
+  <!-- Avisos breves (errores y confirmaciones) -->
+  <div class="aviso" id="aviso" role="status" hidden></div>
+
+</body>
+</html>

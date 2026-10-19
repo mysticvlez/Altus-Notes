@@ -1,0 +1,494 @@
+/* ==========================================================================
+   main.css — Base global: variables, reinicio y componentes comunes
+   (botones, diálogos, campos de contraseña, avisos)
+   Tipografía única de este archivo: Manrope (definida una sola vez en body).
+   Las variables viven en body (no en el selector raíz).
+   ========================================================================== */
+
+/* ---------- Variables (tema claro por defecto) ---------- */
+body {
+  /* Barras, diálogos y menús: color fijo en ambos temas */
+  --color-barra: #1c5561;
+  --color-secundario: #4ae0fe;
+  --color-barra-borde: rgba(255, 255, 255, 0.18);
+  --color-barra-hover: rgba(255, 255, 255, 0.09);
+  --color-barra-activa: rgba(74, 224, 254, 0.18);
+  --color-menu: #154651;
+  --color-campo: rgba(0, 0, 0, 0.22);
+  --color-error-barra: #ffc2ca;
+
+  /* Zona de notas (única superficie blanca) */
+  --color-fondo: #ffffff;
+  --color-texto: #12272c;
+  --color-texto-suave: #4f6970;
+  --color-borde: #d5e3e7;
+  --color-codigo: #e6f0f3;
+  --color-foco-zona: #1c5561;
+  --color-peligro: #b3243a;
+
+  /* Medidas */
+  --ancho-sidebar: 248px;
+  --ancho-tab: 176px;
+  --radio: 6px;
+  --transicion: 0.12s ease;
+
+  color-scheme: light dark;
+
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1; /* Ocupa todo el espacio disponible */
+  overflow: auto; /* Solo el contenido principal es scrolleable */
+}
+
+footer {
+  flex-shrink: 0; /* No se comprime */
+  /* Tu footer siempre será visible */
+}
+
+
+/* ---------- Modo oscuro nativo: solo cambia la zona de notas ---------- */
+@media (prefers-color-scheme: dark) {
+  body {
+    --color-fondo: #0d1b1f;
+    --color-texto: #e6f1f3;
+    --color-texto-suave: #9db8bf;
+    --color-borde: #254651;
+    --color-codigo: #1b3640;
+    --color-foco-zona: #4ae0fe;
+  }
+}
+
+/* ---------- Adaptación a pantallas pequeñas ---------- */
+@media (max-width: 720px) {
+  body {
+    --ancho-tab: 136px;
+  }
+}
+
+/* ---------- Reinicio mínimo ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+  /* única familia */
+  font-size: 16px;
+  line-height: 1.5;
+  background: var(--color-barra);
+  color: var(--color-texto);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Los controles de formulario heredan tipografía y color */
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* El atributo hidden siempre gana */
+[hidden] {
+  display: none !important;
+}
+
+/* Foco visible y consistente para teclado */
+:focus-visible {
+  outline: 2px solid var(--color-secundario);
+  outline-offset: 2px;
+}
+
+/* Texto solo para lectores de pantalla */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Layout: área principal a la derecha de la barra lateral ---------- */
+.principal {
+  margin-left: var(--ancho-sidebar);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 720px) {
+  .principal {
+    margin-left: 0;
+  }
+}
+
+/* ---------- Iconos (emojis en escala de grises para mantener sobriedad) ---------- */
+.icono {
+  filter: grayscale(1) brightness(1.5);
+  opacity: 0.9;
+}
+
+/* ---------- Botones comunes ---------- */
+.boton-primario,
+.boton-peligro,
+.boton-sutil {
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  color: #fff;
+  font-weight: 600;
+  transition: background-color var(--transicion), opacity var(--transicion);
+}
+
+/* Primario sobre la zona blanca */
+.boton-primario {
+  background: var(--color-barra);
+  border-color: var(--color-barra);
+}
+
+.boton-primario:hover {
+  opacity: 0.9;
+}
+
+.boton-primario:disabled,
+.boton-peligro:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Primario dentro de los diálogos (fondo teal): relleno oscuro con borde secundario */
+.dialogo .boton-primario {
+  background: var(--color-menu);
+  border-color: var(--color-secundario);
+}
+
+.dialogo .boton-primario:hover:not(:disabled) {
+  background: var(--color-barra-activa);
+  opacity: 1;
+}
+
+/* Peligro: acciones destructivas */
+.boton-peligro {
+  background: var(--color-peligro);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.boton-peligro:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* Sutil: acciones secundarias sobre fondo teal */
+.boton-sutil {
+  background: transparent;
+  border-color: var(--color-barra-borde);
+  font-weight: 500;
+}
+
+.boton-sutil:hover {
+  background: var(--color-barra-hover);
+}
+
+/* Enlace discreto dentro de los diálogos */
+.enlace {
+  display: block;
+  margin: 18px auto 0;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.enlace:hover {
+  color: var(--color-secundario);
+}
+
+/* ---------- Diálogos (fondo teal, letras blancas) ---------- */
+.dialogo {
+  width: min(430px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 26px;
+  border: 1px solid var(--color-barra-borde);
+  border-radius: 12px;
+  background: var(--color-barra);
+  color: #fff;
+}
+
+.dialogo[open] {
+  animation: dialogo-entra 0.18s ease-out;
+}
+
+.dialogo::backdrop {
+  background: rgba(6, 24, 29, 0.65);
+  animation: velo-entra 0.18s ease-out;
+}
+
+@keyframes dialogo-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes velo-entra {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.dialogo__titulo {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.dialogo__texto {
+  margin: 0 0 14px;
+  font-size: 0.925rem;
+}
+
+.dialogo__texto--suave {
+  opacity: 0.85;
+  font-size: 0.85rem;
+}
+
+.dialogo__acciones {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.dialogo__error {
+  margin: 14px 0 0;
+  font-size: 0.875rem;
+  color: var(--color-error-barra);
+}
+
+/* Advertencia dentro de un diálogo */
+.dialogo__advertencia {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-secundario);
+  border-radius: 0 var(--radio) var(--radio) 0;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+}
+
+/* Campos */
+.campo {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dialogo input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-barra-borde);
+  border-radius: var(--radio);
+  background: var(--color-campo);
+  color: #fff;
+  transition: border-color var(--transicion);
+}
+
+.dialogo input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.dialogo input:focus {
+  outline: none;
+  border-color: var(--color-secundario);
+}
+
+.dialogo input[readonly] {
+  opacity: 0.9;
+}
+
+/* Campo de contraseña con ojo */
+.clave {
+  position: relative;
+}
+
+.clave input {
+  padding-right: 46px;
+}
+
+.clave__ojo {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  bottom: 0;
+  width: 40px;
+  margin: auto 0;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radio);
+  background: transparent;
+  color: #fff;
+  transition: background-color var(--transicion);
+}
+
+.clave__ojo:hover:not(:disabled) {
+  background: var(--color-barra-hover);
+}
+
+.clave__ojo:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clave__tachar {
+  display: none;
+}
+
+.clave__ojo[aria-pressed='true'] .clave__tachar {
+  display: inline;
+}
+
+/* Bloque del registro: se despliega con una transición de altura */
+.auth-extra {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.22s ease, opacity 0.2s ease;
+}
+
+.auth-extra__interior {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dialogo--registro .auth-extra {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Zona de peligro y código de confirmación */
+.zona-peligro {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-barra-borde);
+}
+
+.zona-peligro__titulo {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.codigo {
+  margin: 0 0 6px;
+  padding: 12px;
+  border-radius: var(--radio);
+  background: var(--color-campo);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Campo de renombrado en línea (espacios y pestañas) ---------- */
+.renombrar {
+  flex: 1;
+  min-width: 0;
+  margin: 0 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-secundario);
+  border-radius: 4px;
+  background: var(--color-campo);
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.renombrar:focus {
+  outline: none;
+}
+
+/* ---------- Avisos breves ---------- */
+.aviso {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 120;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border: 1px solid var(--color-barra-borde);
+  border-radius: var(--radio);
+  background: var(--color-menu);
+  color: #fff;
+  font-size: 0.9rem;
+  animation: aviso-entra 0.18s ease-out;
+}
+
+@keyframes aviso-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Respeto a quien reduce el movimiento ---------- */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
