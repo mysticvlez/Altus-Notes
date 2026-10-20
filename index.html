@@ -10,8 +10,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1c5561">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#1b1340">
   <title>Altus Notes</title>
   <meta name="description" content="Altus Notes: notas minimalistas, seguras y orientadas a la privacidad.">
 
@@ -24,7 +24,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseapp.com; base-uri 'none'; form-action 'none'">
 
   <!-- Ícono de la pestaña del navegador -->
-  <link rel="icon" type="image/png" href="altusnoteslogo.png_pestaña.png">
+  <link rel="icon" type="image/png" href="altusnotes.png">
 
   <!--
     Tipografías: Manrope (interfaz) y JetBrains Mono (campo de contenido).
@@ -134,20 +134,24 @@
         <label class="sr-only" for="nota-descripcion">Descripción</label>
         <input id="nota-descripcion" class="nota__descripcion" type="text" maxlength="500" placeholder="Descripción breve" autocomplete="off">
 
-        <!-- Campo único: la capa muestra el formato en vivo y el textarea recibe la escritura -->
+        <!-- Campo único: la capa (en el flujo) muestra el formato en vivo y el textarea, debajo y del mismo tamaño, recibe la escritura -->
         <div class="contenido">
           <pre class="contenido__capa" id="nota-capa" aria-hidden="true"></pre>
           <label class="sr-only" for="nota-contenido">Contenido</label>
           <textarea id="nota-contenido" class="contenido__texto" maxlength="200000" spellcheck="true" placeholder="Escribe aquí…"></textarea>
         </div>
 
-        <p class="nota__ayuda">Formato: *negrita* · _cursiva_ · ~tachado~ · ```monoespaciado```</p>
+        <!-- Ayuda de formato y contador de caracteres -->
+        <div class="nota__pie">
+          <p class="nota__ayuda">Formato: *negrita* · _cursiva_ · ~tachado~ · ```monoespaciado``` · «- » para listas</p>
+          <p class="nota__contador" id="nota-contador">0 caracteres</p>
+        </div>
       </article>
     </main>
 
     <!-- Pie de página discreto -->
     <footer class="pie">
-      <p>Diseñado y desarrollado por E. Villegas (MysticVlez) --- Código Abierto y Enfocado en Privacidad --- Mira más de mi repositorio en: <a href="https://github.com/mysticvlez" target="_blank" style="color: white; font-weight: bold;">GitHub</a></p>
+      <p>Diseñado y desarrollado por E. Villegas (MysticVlez) --- Código Abierto y Enfocado en Privacidad --- Mira más de mi repositorio en: <a href="https://github.com/mysticvlez" target="_blank" rel="noopener noreferrer">GitHub</a></p>
     </footer>
   </div>
 
@@ -210,11 +214,11 @@
     <!-- Con sesión iniciada -->
     <div id="config-cuenta" hidden>
       <label class="campo" for="config-email">Correo electrónico</label>
-      <input id="config-email" type="email" readonly>
+      <input id="config-email" type="email" readonly aria-readonly="true" inputmode="none" autocomplete="off">
 
       <label class="campo" for="config-password">Contraseña</label>
       <div class="clave">
-        <input id="config-password" type="password" placeholder="••••••••" readonly>
+        <input id="config-password" type="password" placeholder="••••••••" readonly aria-readonly="true" inputmode="none" autocomplete="off">
         <button type="button" class="clave__ojo" id="config-ojo" data-ver-clave="config-password" aria-label="Mostrar contraseña" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="clave__tachar" d="M4 4l16 16"/></svg>
         </button>

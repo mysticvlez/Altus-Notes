@@ -35,6 +35,16 @@
                        && request.auth.uid == resource.data.userId
                        && datosValidos();
        }
+
+       // Distribución de espacios de cada usuario (un documento por UID)
+       match /usuarios/{uid} {
+         allow read, delete: if request.auth != null && request.auth.uid == uid;
+         allow create, update: if request.auth != null && request.auth.uid == uid
+           && request.resource.data.keys().hasOnly(['espacios','ordenNotas','fechaActualizacion'])
+           && request.resource.data.espacios is list && request.resource.data.espacios.size() <= 60
+           && request.resource.data.ordenNotas is list && request.resource.data.ordenNotas.size() <= 2000
+           && request.resource.data.fechaActualizacion == request.time;
+       }
      }
    }
    ========================================================================== */
@@ -101,6 +111,37 @@ export function guardarNota(nota) {
 }
 
 export const eliminarNota = (id) => deleteDoc(doc(notas, id));
+
+/* ---------- Distribución de espacios (documento usuarios/{uid}) ---------- */
+const refDiseno = (uid) => doc(firestore, 'usuarios', uid);
+
+/**
+ * Escucha la distribución del usuario. Entrega null si todavía no existe.
+ * Se ignoran las copias locales pendientes y las lecturas de caché vacías,
+ * que no son la respuesta real del servidor.
+ */
+export function suscribirDiseno(uid, alRecibir, alFallar) {
+  return onSnapshot(
+    refDiseno(uid),
+    (snap) => {
+      if (snap.metadata.hasPendingWrites) return;
+      if (!snap.exists() && snap.metadata.fromCache) return;
+      const x = snap.exists() ? snap.data() : null;
+      alRecibir(x ? { espacios: x.espacios, ordenNotas: x.ordenNotas } : null);
+    },
+    alFallar,
+  );
+}
+
+export function guardarDisenoNube(uid, diseno) {
+  return setDoc(refDiseno(uid), {
+    espacios: diseno.espacios,
+    ordenNotas: diseno.ordenNotas,
+    fechaActualizacion: serverTimestamp(),
+  });
+}
+
+export const eliminarDiseno = (uid) => deleteDoc(refDiseno(uid));
 
 /** Borra todas las notas del usuario, en lotes (el límite de Firestore es 500 por lote). */
 export async function eliminarTodasLasNotas(uid) {

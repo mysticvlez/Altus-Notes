@@ -31,8 +31,7 @@
   width: auto;
   max-width: 100%;
   height: auto;
-  max-height: 56px;
-  margin-left: 20px;    
+  max-height: 46px;
 }
 
 /* ---------- Espacios (nivel 1 de pestañas) ---------- */
@@ -175,8 +174,8 @@
 
 /* ---------- Barra superior ---------- */
 .topbar {
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex: 0 0 auto;
   z-index: 30; /* por debajo de la barra lateral */
   background: var(--color-barra);
   color: #fff;
@@ -258,14 +257,20 @@
 
 /* ---------- Pie de página discreto ---------- */
 .pie {
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--color-barra-borde);
   background: var(--color-barra);
   color: #fff;
   text-align: center;
-  font-size: 0.75rem;
+  font-size: clamp(0.625rem, 2.4vw, 0.75rem); /* siempre pequeño */
+  line-height: 1.4;
+  overflow-wrap: anywhere;                    /* nunca se sale del ancho de la pantalla */
 }
 .pie p { margin: 0; }
+.pie a { color: #fff; font-weight: 700; text-underline-offset: 2px; }
 
 /* ---------- Velo para la barra lateral en móvil ---------- */
 .velo {
@@ -317,5 +322,4 @@ body.arrastre-activo { cursor: grabbing; user-select: none; -webkit-user-select:
   .boton-barra--espacios { display: inline-block; }
   .topbar__usuario { display: none; }
   .topbar__acciones { padding: 0 12px; }
-  .pie { font-size: 0.7rem; }
 }

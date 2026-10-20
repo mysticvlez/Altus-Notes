@@ -24,6 +24,7 @@ const el = {
   tabsIzq: $('tabs-izq'), tabsDer: $('tabs-der'), listaTabs: $('lista-tabs'),
   btnNuevaNota: $('btn-nueva-nota'), btnVacioNueva: $('btn-vacio-nueva'),
   estadoVacio: $('estado-vacio'), nota: $('nota'), estadoGuardado: $('estado-guardado'),
+  editor: $('editor'), contador: $('nota-contador'),
   titulo: $('nota-titulo'), descripcion: $('nota-descripcion'), contenido: $('nota-contenido'), capa: $('nota-capa'),
   menuCtx: $('menu-contextual'),
   dialogoAuth: $('dialogo-auth'), formAuth: $('form-auth'), authTitulo: $('auth-titulo'),
@@ -56,6 +57,13 @@ let temporizadorAviso = null;
 let menuOrigen = null;        // botón que abrió el menú flotante
 let codigoBorrado = '';
 let borradoNecesitaClave = false;
+let ultimaFirmaEspacios = null; // resumen de lo último dibujado: evita repintar si nada cambió
+let ultimaFirmaTabs = null;
+let ultimoTextoCapa = null;
+let procesandoLista = false;    // true mientras se inserta una viñeta por código
+let marcoSeguir = 0;            // fotograma pendiente del seguimiento del cursor
+
+const FORMATO_NUMERO = new Intl.NumberFormat('es-MX');
 
 const nodosEspacios = new Map(); // id -> <li>
 const nodosTabs = new Map();     // id -> <div>
@@ -71,6 +79,7 @@ export function iniciarUI(manejadores) {
   enlazarConfiguracion();
   enlazarCajonYAncho();
   enlazarGlobales();
+  enlazarViewport();
   aplicarModoAuth();
 }
 
@@ -176,7 +185,16 @@ function crearNodoEspacio(espacio) {
 }
 
 function renderEspacios(estado) {
-  sincronizarLista(el.listaEspacios, nodosEspacios, espaciosOrdenados(), {
+  const cuentas = new Map();
+  for (const n of estado.notas) cuentas.set(n.categoria, (cuentas.get(n.categoria) ?? 0) + 1);
+  const lista = espaciosOrdenados();
+
+  // Si nada de lo visible cambió (por ejemplo, al escribir), no se toca el DOM
+  const firma = `${estado.espacioActivoId}#${lista.map((e) => `${e.id}|${e.nombre}|${e.fijado ? 1 : 0}|${cuentas.get(e.nombre) ?? 0}`).join('¦')}`;
+  if (firma === ultimaFirmaEspacios) return;
+  ultimaFirmaEspacios = firma;
+
+  sincronizarLista(el.listaEspacios, nodosEspacios, lista, {
     clave: (e) => e.id,
     animar: !primerRender,
     claseEntra: 'espacio--entrando',
@@ -191,7 +209,7 @@ function renderEspacios(estado) {
       else principal.removeAttribute('aria-current');
       nodo.querySelector('.espacio__pin').hidden = !espacio.fijado;
       nodo.querySelector('.espacio__nombre').textContent = espacio.nombre;
-      nodo.querySelector('.espacio__cuenta').textContent = String(estado.notas.filter((n) => n.categoria === espacio.nombre).length);
+      nodo.querySelector('.espacio__cuenta').textContent = String(cuentas.get(espacio.nombre) ?? 0);
     },
   });
 }
@@ -223,6 +241,13 @@ function crearNodoTab(nota) {
 }
 
 function renderTabs(estado) {
+  const notas = notasDeEspacioActivo();
+
+  // Si nada de lo visible cambió (por ejemplo, al escribir el contenido), no se toca el DOM
+  const firma = `${estado.espacioActivoId}#${estado.notaActivaId}#${notas.map((n) => `${n.id}|${n.titulo}|${n.fijada ? 1 : 0}`).join('¦')}`;
+  if (firma === ultimaFirmaTabs) return;
+  ultimaFirmaTabs = firma;
+
   // Al cambiar de espacio se reemplaza todo de golpe, sin animar cada pestaña
   if (espacioDeTabs !== estado.espacioActivoId) {
     el.listaTabs.replaceChildren();
@@ -232,7 +257,7 @@ function renderTabs(estado) {
   const animar = !primerRender && espacioDeTabs === estado.espacioActivoId;
   espacioDeTabs = estado.espacioActivoId;
 
-  sincronizarLista(el.listaTabs, nodosTabs, notasDeEspacioActivo(), {
+  sincronizarLista(el.listaTabs, nodosTabs, notas, {
     clave: (n) => n.id,
     animar,
     claseEntra: 'tab--entrando',
@@ -291,11 +316,120 @@ function sincronizarCampo(campo, valor, forzar) {
   if (campo.value !== valor && (forzar || document.activeElement !== campo)) campo.value = valor;
 }
 
-/** El textarea crece con su contenido; así la capa de formato siempre coincide. */
-function ajustarAltura() {
-  if (el.nota.hidden) return;
-  el.contenido.style.height = 'auto';
-  el.contenido.style.height = `${el.contenido.scrollHeight}px`;
+/* ---------- Cursor, listas y altura de la pantalla ---------- */
+
+/** Rectángulo en pantalla de la posición del cursor, medido sobre la capa de formato. */
+function rectCursor(indice) {
+  const recorrido = document.createTreeWalker(el.capa, NodeFilter.SHOW_TEXT);
+  let acumulado = 0;
+  let nodo = recorrido.nextNode();
+  while (nodo) {
+    const largo = nodo.nodeValue.length;
+    if (indice <= acumulado + largo) break;
+    acumulado += largo;
+    nodo = recorrido.nextNode();
+  }
+  if (!nodo) return null;
+
+  const posicion = indice - acumulado;
+  const rango = document.createRange();
+  const medir = (desde, hasta) => {
+    rango.setStart(nodo, desde);
+    rango.setEnd(nodo, hasta);
+    const rects = rango.getClientRects();
+    return rects.length ? rects[rects.length - 1] : null;
+  };
+  let rect = medir(posicion, posicion);
+  if (!rect || rect.height === 0) {
+    if (posicion > 0) rect = medir(posicion - 1, posicion);
+    else if (posicion < nodo.nodeValue.length) rect = medir(posicion, posicion + 1);
+    else rect = null;
+  }
+  return rect;
+}
+
+/** Mantiene el cursor a la vista, con espacio libre debajo, mientras se escribe. */
+function seguirCursor() {
+  const area = el.contenido;
+  if (document.activeElement !== area || el.nota.hidden) return;
+  const rect = rectCursor(area.selectionStart);
+  if (!rect) return;
+  const zona = el.editor.getBoundingClientRect();
+  const margenInferior = Math.max(96, zona.height * 0.3);
+  const limiteInferior = zona.bottom - margenInferior;
+  const limiteSuperior = zona.top + 48;
+  if (rect.bottom > limiteInferior) el.editor.scrollTop += rect.bottom - limiteInferior;
+  else if (rect.top < limiteSuperior) el.editor.scrollTop -= limiteSuperior - rect.top;
+}
+
+function programarSeguirCursor() {
+  if (marcoSeguir) return;
+  marcoSeguir = requestAnimationFrame(() => {
+    marcoSeguir = 0;
+    seguirCursor();
+  });
+}
+
+/** Inserta (o borra, con texto vacío) conservando el historial de deshacer cuando el navegador lo permite. */
+function insertarEnCursor(area, texto, desde, hasta) {
+  procesandoLista = true;
+  try {
+    area.focus();
+    area.setSelectionRange(desde, hasta);
+    const hecho = texto === '' ? document.execCommand('delete') : document.execCommand('insertText', false, texto);
+    if (!hecho) {
+      area.setRangeText(texto, desde, hasta, 'end');
+      area.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  } finally {
+    procesandoLista = false;
+  }
+}
+
+/** "- " al inicio de una línea se convierte en una viñeta. Devuelve true si convirtió. */
+function convertirGuion(area) {
+  const cursor = area.selectionStart;
+  if (cursor !== area.selectionEnd || cursor < 2) return false;
+  const texto = area.value;
+  if (texto.slice(cursor - 2, cursor) !== '- ') return false;
+  const inicioLinea = texto.lastIndexOf('\n', cursor - 3) + 1;
+  if (!/^[ \t]*$/.test(texto.slice(inicioLinea, cursor - 2))) return false;
+  insertarEnCursor(area, '• ', cursor - 2, cursor);
+  return true;
+}
+
+/** Enter dentro de una lista: continúa con otra viñeta; sobre una viñeta vacía, termina la lista. */
+function continuarLista(e) {
+  if (procesandoLista || (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph')) return;
+  const area = e.target;
+  const cursor = area.selectionStart;
+  if (cursor !== area.selectionEnd) return;
+  const texto = area.value;
+  const inicioLinea = texto.lastIndexOf('\n', cursor - 1) + 1;
+  const coincide = texto.slice(inicioLinea, cursor).match(/^([ \t]*)• (.*)$/);
+  if (!coincide) return;
+  e.preventDefault();
+  if (coincide[2].trim() === '') insertarEnCursor(area, '', inicioLinea, cursor);
+  else insertarEnCursor(area, `\n${coincide[1]}• `, cursor, cursor);
+}
+
+/** La app ocupa exactamente la parte visible de la pantalla (descontando el teclado). */
+function ajustarAlturaApp() {
+  const vista = window.visualViewport;
+  if (!vista || vista.scale > 1.01) return; // con zoom del usuario no se toca
+  document.body.style.setProperty('--alto-app', `${Math.round(vista.height)}px`);
+}
+
+function enlazarViewport() {
+  ajustarAlturaApp();
+  const alCambiar = () => {
+    ajustarAlturaApp();
+    programarSeguirCursor();
+  };
+  window.visualViewport?.addEventListener('resize', alCambiar);
+  window.addEventListener('orientationchange', alCambiar);
+  // El teclado tarda un instante en abrirse: después se vuelve a comprobar que el cursor se vea
+  el.contenido.addEventListener('focus', () => setTimeout(programarSeguirCursor, 300));
 }
 
 function actualizarMenuArchivo(nota) {
@@ -320,9 +454,15 @@ function renderEditor() {
   sincronizarCampo(el.contenido, nota.contenido, cambioDeNota);
   idNotaMostrada = nota.id;
 
-  // Capa de formato en vivo (el parser escapa el HTML antes de formatear)
-  el.capa.innerHTML = parsearEnVivo(nota.contenido);
-  ajustarAltura();
+  // Capa de formato en vivo y contador (el parser escapa el HTML antes de formatear)
+  if (cambioDeNota || nota.contenido !== ultimoTextoCapa) {
+    ultimoTextoCapa = nota.contenido;
+    // Si el texto termina en salto de línea, un espacio final hace que esa última línea ocupe altura
+    el.capa.innerHTML = parsearEnVivo(nota.contenido) + (nota.contenido.endsWith('\n') ? ' ' : '');
+    const total = Array.from(nota.contenido).length;
+    el.contador.textContent = `${FORMATO_NUMERO.format(total)} ${total === 1 ? 'carácter' : 'caracteres'}`;
+  }
+  if (cambioDeNota) el.editor.scrollTop = 0;
 
   // Transición breve al cambiar de nota
   if (cambioDeNota && previa !== null) {
@@ -433,7 +573,6 @@ function renombrarEspacioUI(id) {
   const nodo = nodosEspacios.get(id);
   const espacio = obtenerEspacio(id);
   if (!nodo || !espacio) return;
-  cerrarCajonSiMovil(false);
   nodo.scrollIntoView({ block: 'nearest' });
   iniciarRenombrado(nodo, espacio.nombre, 40, (valor) => acciones.renombrarEspacio(id, valor));
 }
@@ -719,9 +858,13 @@ function cerrarMenuArchivo(devolverFoco = false) {
 function enlazarEditor() {
   el.titulo.addEventListener('input', (e) => acciones.cambioCampo('titulo', e.target.value));
   el.descripcion.addEventListener('input', (e) => acciones.cambioCampo('descripcion', e.target.value));
-  el.contenido.addEventListener('input', (e) => acciones.cambioCampo('contenido', e.target.value));
-  // Cuando termina de cargar la tipografía cambian las medidas del texto
-  if (document.fonts?.ready) document.fonts.ready.then(ajustarAltura);
+  el.contenido.addEventListener('beforeinput', continuarLista);
+  el.contenido.addEventListener('input', (e) => {
+    // "- " al inicio de línea pasa a viñeta; esa inserción genera su propio evento de entrada
+    if (!procesandoLista && !e.isComposing && e.inputType?.startsWith('insert') && convertirGuion(e.target)) return;
+    acciones.cambioCampo('contenido', e.target.value);
+    programarSeguirCursor();
+  });
 }
 
 /* ======================= Acceso / registro ======================= */
@@ -860,6 +1003,11 @@ function abrirBorrado() {
 
 function enlazarConfiguracion() {
   el.btnConfig.addEventListener('click', abrirConfiguracion);
+
+  // Correo y contraseña de la cuenta: solo lectura, sin edición, pegado ni arrastre de texto
+  for (const campo of [el.configEmail, el.configPassword]) {
+    ['beforeinput', 'paste', 'cut', 'drop'].forEach((tipo) => campo.addEventListener(tipo, (e) => e.preventDefault()));
+  }
   el.configCerrar.addEventListener('click', () => el.dialogoConfig.close());
   el.configAcceder.addEventListener('click', () => { el.dialogoConfig.close(); abrirAuth(); });
   el.configBorrar.addEventListener('click', abrirBorrado);
@@ -1017,9 +1165,9 @@ function enlazarGlobales() {
   window.addEventListener('resize', () => {
     cerrarMenu();
     if (!ES_MOVIL.matches) cerrarCajon();
-    requestAnimationFrame(() => { ajustarAltura(); actualizarFlechas(); });
+    requestAnimationFrame(actualizarFlechas);
   });
-  window.addEventListener('scroll', () => cerrarMenu(), { passive: true });
+  el.editor.addEventListener('scroll', () => cerrarMenu(), { passive: true });
 }
 
 /* ======================= Avisos ======================= */

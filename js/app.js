@@ -8,11 +8,18 @@ import * as store from './store.js';
 import * as ui from './ui.js';
 import * as fs from './fileSystem.js';
 
-const RETARDO_GUARDADO = 700; // ms de pausa al escribir antes de subir a Firestore
+const RETARDO_GUARDADO = 700;   // ms de pausa al escribir antes de subir una nota a Firestore
+const RETARDO_DISENO = 600;     // ms de pausa antes de subir la distribución de espacios
+const ESPERA_DISENO = 5000;     // ms que se espera a la distribución de la nube antes de usar la copia local
 
-let auth = null;                  // módulo auth.js (null si Firebase no cargó)
-let db = null;                    // módulo db.js
-let cancelarSuscripcion = null;
+let auth = null;                // módulo auth.js (null si Firebase no cargó)
+let db = null;                  // módulo db.js
+let cancelarNotas = null;
+let cancelarDiseno = null;
+let esperaDiseno = null;        // temporizador de la espera de la distribución
+let temporizadorDiseno = null;  // subida de la distribución pendiente
+let disenoEnVuelo = false;
+let avisoNubeMostrado = false;
 const temporizadores = new Map(); // idNota -> temporizador de guardado
 
 /* ---------- Utilidades ---------- */
@@ -22,10 +29,15 @@ const mensaje = (error, porDefecto) => (error instanceof Error && error.message 
 
 /** Crea una nota (vacía o con datos) en el espacio activo. */
 function crearNota(datos = {}) {
+  const espacio = store.espacioActivo();
+  if (!espacio && !datos.categoria) {
+    ui.mostrarAviso('Cargando tus espacios…');
+    return null;
+  }
   const nota = store.construirNota({
     id: nuevoId(),
     userId: usuarioActual()?.uid ?? null,
-    categoria: store.espacioActivo().nombre,
+    categoria: espacio?.nombre,
     ...datos,
   });
   store.agregarNota(nota);
@@ -33,7 +45,7 @@ function crearNota(datos = {}) {
   return nota;
 }
 
-/* ---------- Guardado diferido en Firestore ---------- */
+/* ---------- Guardado diferido de notas en Firestore ---------- */
 function programarGuardado(id) {
   if (!db || !usuarioActual()) return; // modo local: nada que subir
   clearTimeout(temporizadores.get(id));
@@ -63,12 +75,47 @@ async function eliminarEnNube(nota) {
   }
 }
 
-/* ---------- Sesión ---------- */
-function alCambiarSesion(usuario) {
-  cancelarSuscripcion?.();
-  cancelarSuscripcion = null;
+/* ---------- Distribución de espacios en la nube ---------- */
+function avisarFaltaDeReglas() {
+  if (avisoNubeMostrado) return;
+  avisoNubeMostrado = true;
+  ui.mostrarAviso('Tus espacios no se pueden sincronizar: publica la regla «usuarios» de Firestore (ver js/db.js).');
+}
+
+/** Sube la distribución con una pausa, para agrupar varios cambios seguidos. */
+function programarSubidaDiseno() {
+  if (!db || !usuarioActual()) return;
+  clearTimeout(temporizadorDiseno);
+  temporizadorDiseno = setTimeout(async () => {
+    temporizadorDiseno = null;
+    const usuario = usuarioActual();
+    if (!usuario) return;
+    disenoEnVuelo = true;
+    try {
+      await db.guardarDisenoNube(usuario.uid, store.exportarDiseno());
+    } catch {
+      avisarFaltaDeReglas();
+    } finally {
+      disenoEnVuelo = false;
+    }
+  }, RETARDO_DISENO);
+}
+
+function detenerSuscripciones() {
+  cancelarNotas?.();
+  cancelarDiseno?.();
+  cancelarNotas = null;
+  cancelarDiseno = null;
+  clearTimeout(esperaDiseno);
+  clearTimeout(temporizadorDiseno);
+  temporizadorDiseno = null;
   temporizadores.forEach((t) => clearTimeout(t));
   temporizadores.clear();
+}
+
+/* ---------- Sesión ---------- */
+function alCambiarSesion(usuario) {
+  detenerSuscripciones();
 
   if (!usuario) {
     store.setUsuario(null);
@@ -78,20 +125,38 @@ function alCambiarSesion(usuario) {
     return;
   }
 
+  // Lo que hay en modo local sirve de punto de partida si la cuenta aún no tiene distribución
+  const semilla = store.obtenerEstado().claveDiseno === 'local' ? store.exportarDiseno() : null;
   // Rescata las notas escritas en modo local (solo las que tienen contenido)
   const locales = store.obtenerEstado().notas
     .filter((n) => !n.userId && store.notaTieneContenido(n))
     .map((n) => ({ ...n }));
 
   store.setUsuario(usuario);
-  store.cargarDiseno(usuario.uid);
+  store.cargarDiseno(usuario.uid, semilla);
   store.limpiarNotas();
   for (const local of locales) {
     store.agregarNota(store.construirNota({ ...local, id: db.nuevoId(), userId: usuario.uid }));
   }
   store.obtenerEstado().notas.forEach((n) => programarGuardado(n.id));
 
-  cancelarSuscripcion = db.suscribirNotas(
+  // Distribución de espacios: la de la nube manda sobre la copia de este dispositivo
+  cancelarDiseno = db.suscribirDiseno(
+    usuario.uid,
+    (datos) => {
+      if (temporizadorDiseno || disenoEnVuelo) return; // hay cambios propios sin subir
+      clearTimeout(esperaDiseno);
+      store.aplicarDisenoRemoto(datos);
+    },
+    () => {
+      clearTimeout(esperaDiseno);
+      store.usarDisenoTemporal();
+      avisarFaltaDeReglas();
+    },
+  );
+  esperaDiseno = setTimeout(() => store.usarDisenoTemporal(), ESPERA_DISENO);
+
+  cancelarNotas = db.suscribirNotas(
     usuario.uid,
     (remotas) => store.reemplazarNotasRemotas(remotas),
     () => ui.mostrarAviso('No se pudieron leer tus notas. Revisa las reglas de Firestore.'),
@@ -103,7 +168,15 @@ const manejadores = {
   /* --- Espacios --- */
   seleccionarEspacio: (id) => store.seleccionarEspacio(id),
 
-  nuevoEspacio: () => store.crearEspacio('Nuevo Espacio').id,
+  nuevoEspacio() {
+    if (!store.disenoListo()) {
+      ui.mostrarAviso('Cargando tus espacios…');
+      return null;
+    }
+    const espacio = store.crearEspacio('Nuevo Espacio');
+    if (!espacio) ui.mostrarAviso('Alcanzaste el máximo de 50 espacios.');
+    return espacio?.id ?? null;
+  },
 
   renombrarEspacio(id, nombre) {
     const afectadas = store.renombrarEspacio(id, nombre);
@@ -234,7 +307,7 @@ const manejadores = {
 
   claveActual: () => auth?.claveDeSesion() ?? null,
 
-  /** Borra notas y cuenta por completo; exige confirmar la contraseña. */
+  /** Borra notas, distribución y cuenta por completo; exige confirmar la contraseña. */
   async borrarCuenta({ password }) {
     const usuario = usuarioActual();
     if (!usuario || !auth || !db) throw new Error('No hay una sesión activa.');
@@ -242,12 +315,16 @@ const manejadores = {
     if (!clave) throw new Error('Escribe tu contraseña.');
 
     await auth.reautenticar(clave);
-    temporizadores.forEach((t) => clearTimeout(t)); // ninguna edición pendiente debe recrear notas
-    temporizadores.clear();
+    detenerSuscripciones(); // ninguna edición pendiente debe recrear datos
     try {
       await db.eliminarTodasLasNotas(usuario.uid);
     } catch {
       throw new Error('No se pudieron borrar tus notas. Inténtalo de nuevo.');
+    }
+    try {
+      await db.eliminarDiseno(usuario.uid);
+    } catch {
+      // Si la regla de distribución no está publicada, no hay nada que borrar
     }
     store.borrarDiseno(usuario.uid);
     await auth.eliminarUsuario(); // al cerrarse la sesión, alCambiarSesion(null) limpia la interfaz
@@ -257,6 +334,7 @@ const manejadores = {
 /* ---------- Arranque ---------- */
 async function iniciar() {
   store.suscribir(ui.renderizar);
+  store.alCambiarDiseno(programarSubidaDiseno);
   ui.iniciarUI(manejadores);
   store.cargarDiseno('local'); // espacios visibles desde el primer instante
 

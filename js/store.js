@@ -1,14 +1,18 @@
 /* ==========================================================================
    store.js — Estado central de la aplicación (patrón suscripción)
    No toca el DOM ni Firebase: solo guarda datos y avisa a quien escuche.
-   La distribución (espacios, orden de pestañas) se recuerda en este
-   navegador con localStorage, separada por usuario.
+
+   La distribución (espacios y orden de pestañas) se guarda en dos lugares:
+   - localStorage, separada por usuario, para arrancar al instante.
+   - La nube (la sincroniza app.js mediante alCambiarDiseno), para que sea la
+     misma en cualquier dispositivo.
    ========================================================================== */
 
 const ESPACIOS_INICIALES = ['Trabajo', 'Personal', 'Ideas'];
 const CAMPOS_TEXTO = ['titulo', 'descripcion', 'contenido'];
 const PREFIJO_DISENO = 'altus:diseno:';
 const LIMITE_NOMBRE = 40;
+const LIMITE_ESPACIOS = 50;
 const LIMITE_ORDEN = 1500;
 
 /*
@@ -28,15 +32,37 @@ const estado = {
   notas: [],
   ordenNotas: [],         // ids de notas en el orden de las pestañas
   claveDiseno: 'local',   // 'local' o el uid del usuario
+  disenoCargado: true,    // false mientras se espera la distribución guardada en la nube
+  sinNube: false,         // true si la nube no respondió: se trabaja con la copia local
+  semilla: null,          // distribución de partida para un usuario sin nada guardado
 };
 
 const oyentes = new Set();
 const emitir = () => oyentes.forEach((fn) => fn(estado));
 
+let notificarDiseno = null; // lo registra app.js para subir la distribución a la nube
+
 const generarId = () =>
   (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `id${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
 
-/* ---------- Persistencia de la distribución ---------- */
+/* ---------- Distribución: normalización y persistencia ---------- */
+function normalizarEspacios(lista) {
+  const salida = [];
+  if (!Array.isArray(lista)) return salida;
+  for (const e of lista) {
+    const nombre = typeof e?.nombre === 'string' ? e.nombre.trim().slice(0, LIMITE_NOMBRE) : '';
+    if (!nombre || salida.length >= LIMITE_ESPACIOS) continue;
+    if (salida.some((x) => x.nombre.toLowerCase() === nombre.toLowerCase())) continue;
+    salida.push({ id: typeof e.id === 'string' && e.id ? e.id.slice(0, 64) : generarId(), nombre, fijado: e.fijado === true });
+  }
+  return salida;
+}
+
+const espaciosIniciales = () => ESPACIOS_INICIALES.map((nombre) => ({ id: generarId(), nombre, fijado: false }));
+
+const normalizarOrden = (orden) =>
+  (Array.isArray(orden) ? orden.filter((x) => typeof x === 'string') : []).slice(-LIMITE_ORDEN);
+
 function leerDiseno(clave) {
   try {
     const crudo = localStorage.getItem(PREFIJO_DISENO + clave);
@@ -46,15 +72,22 @@ function leerDiseno(clave) {
   }
 }
 
-function guardarDiseno() {
+/** Copia de la distribución actual, lista para guardar o subir. */
+export function exportarDiseno() {
+  return {
+    espacios: estado.espacios.map((e) => ({ id: e.id, nombre: e.nombre, fijado: e.fijado })),
+    ordenNotas: estado.ordenNotas.slice(-LIMITE_ORDEN),
+  };
+}
+
+/** Guarda la distribución en este navegador y, si corresponde, avisa para subirla a la nube. */
+function guardarDiseno(notificar = true) {
   try {
-    localStorage.setItem(
-      PREFIJO_DISENO + estado.claveDiseno,
-      JSON.stringify({ espacios: estado.espacios, ordenNotas: estado.ordenNotas.slice(-LIMITE_ORDEN) }),
-    );
+    localStorage.setItem(PREFIJO_DISENO + estado.claveDiseno, JSON.stringify(exportarDiseno()));
   } catch {
     // Sin almacenamiento disponible: la distribución solo dura la sesión
   }
+  if (notificar && estado.usuario && estado.disenoCargado && notificarDiseno) notificarDiseno();
 }
 
 export function borrarDiseno(clave) {
@@ -63,6 +96,11 @@ export function borrarDiseno(clave) {
   } catch {
     // Sin almacenamiento disponible
   }
+}
+
+/** Registra la función que sube la distribución a la nube. */
+export function alCambiarDiseno(fn) {
+  notificarDiseno = fn;
 }
 
 /* ---------- Lectura ---------- */
@@ -78,6 +116,9 @@ export const notaActiva = () => obtenerNota(estado.notaActivaId);
 export const obtenerEspacio = (id) => estado.espacios.find((e) => e.id === id) ?? null;
 export const espacioActivo = () => obtenerEspacio(estado.espacioActivoId);
 export const totalEspacios = () => estado.espacios.length;
+
+/** true cuando la distribución ya se puede usar (en la nube o en modo local). */
+export const disenoListo = () => !estado.usuario || estado.disenoCargado || estado.sinNube;
 
 /** Espacios en el orden que se muestra: los fijados siempre primero. */
 export function espaciosOrdenados() {
@@ -141,29 +182,86 @@ export function construirNota({ id, userId = null, categoria, titulo = '', descr
   return { id, userId, categoria, titulo, descripcion, contenido, fijada, fechaActualizacion: Date.now(), archivo, _rev: 0, _revTexto: 0, _sucia: false };
 }
 
-/* ---------- Distribución ---------- */
-/** Carga los espacios y el orden guardados para 'local' o para un uid. */
-export function cargarDiseno(clave) {
+/* ---------- Distribución: carga ---------- */
+/**
+ * Carga la distribución de 'local' o de un uid.
+ * Para un usuario sin copia en este navegador se espera a la de la nube
+ * (aplicarDisenoRemoto); 'semilla' es el punto de partida si tampoco existe allí.
+ */
+export function cargarDiseno(clave, semilla = null) {
   // Si ya está cargada esa distribución, se conserva tal cual (mismos ids, sin parpadeos)
   if (clave === estado.claveDiseno && estado.espacios.length) return;
-  estado.claveDiseno = clave;
-  const guardado = leerDiseno(clave);
-  const espacios = [];
 
-  if (guardado && Array.isArray(guardado.espacios)) {
-    for (const e of guardado.espacios) {
-      const nombre = typeof e?.nombre === 'string' ? e.nombre.trim().slice(0, LIMITE_NOMBRE) : '';
-      if (!nombre || espacios.some((x) => x.nombre.toLowerCase() === nombre.toLowerCase())) continue;
-      espacios.push({ id: typeof e.id === 'string' && e.id ? e.id : generarId(), nombre, fijado: e.fijado === true });
-    }
+  const esUsuario = clave !== 'local';
+  const guardado = leerDiseno(clave);
+  estado.claveDiseno = clave;
+  estado.semilla = semilla;
+  estado.sinNube = false;
+  estado.disenoCargado = !esUsuario;
+
+  let espacios = normalizarEspacios(guardado?.espacios);
+  estado.ordenNotas = normalizarOrden(guardado?.ordenNotas ?? semilla?.ordenNotas);
+
+  if (!espacios.length && !esUsuario) espacios = espaciosIniciales();
+  estado.espacios = espacios;
+  estado.espacioActivoId = espaciosOrdenados()[0]?.id ?? null;
+  corregirSeleccion();
+  if (!esUsuario) guardarDiseno();
+  emitir();
+}
+
+/**
+ * Aplica la distribución guardada en la nube (o null si todavía no existe allí,
+ * en cuyo caso se sube la que hay en este dispositivo).
+ */
+export function aplicarDisenoRemoto(datos) {
+  const nombreActivo = espacioActivo()?.nombre;
+  const yaCargado = estado.disenoCargado;
+  const antes = JSON.stringify([estado.espacios, estado.ordenNotas]);
+
+  let espacios;
+  let orden;
+  if (datos) {
+    espacios = normalizarEspacios(datos.espacios);
+    orden = normalizarOrden(datos.ordenNotas);
+  } else {
+    espacios = estado.espacios.length ? estado.espacios : normalizarEspacios(estado.semilla?.espacios);
+    orden = estado.ordenNotas.length ? estado.ordenNotas : normalizarOrden(estado.semilla?.ordenNotas);
   }
-  if (!espacios.length) espacios.push(...ESPACIOS_INICIALES.map((nombre) => ({ id: generarId(), nombre, fijado: false })));
+  if (!espacios.length) espacios = espaciosIniciales();
 
   estado.espacios = espacios;
-  estado.ordenNotas = Array.isArray(guardado?.ordenNotas) ? guardado.ordenNotas.filter((x) => typeof x === 'string') : [];
-  estado.espacioActivoId = espaciosOrdenados()[0].id;
+  estado.ordenNotas = orden;
+  estado.disenoCargado = true;
+  estado.sinNube = false;
+
+  // Todo espacio usado por una nota existente debe aparecer
+  const cantidad = estado.espacios.length;
+  for (const n of estado.notas) asegurarEspacio(n.categoria);
+  const completado = estado.espacios.length !== cantidad;
+
+  estado.espacioActivoId = (estado.espacios.find((e) => e.nombre === nombreActivo) ?? espaciosOrdenados()[0])?.id ?? null;
+  aplicarOrden();
   corregirSeleccion();
-  guardarDiseno();
+
+  const cambio = antes !== JSON.stringify([estado.espacios, estado.ordenNotas]);
+  guardarDiseno(!datos || completado); // se sube solo si la nube no la tenía o se completó
+  if (cambio || !yaCargado) emitir();
+}
+
+/** Si la nube no responde, se usa una copia provisional para poder trabajar. */
+export function usarDisenoTemporal() {
+  if (estado.disenoCargado) return;
+  estado.sinNube = true;
+  if (!estado.espacios.length) {
+    estado.espacios = normalizarEspacios(estado.semilla?.espacios);
+    if (!estado.espacios.length) estado.espacios = espaciosIniciales();
+  }
+  for (const n of estado.notas) asegurarEspacio(n.categoria);
+  if (!obtenerEspacio(estado.espacioActivoId)) estado.espacioActivoId = espaciosOrdenados()[0]?.id ?? null;
+  aplicarOrden();
+  corregirSeleccion();
+  guardarDiseno(false);
   emitir();
 }
 
@@ -181,8 +279,9 @@ export function seleccionarEspacio(id) {
   emitir();
 }
 
-/** Crea un espacio con nombre único y lo deja seleccionado. */
+/** Crea un espacio con nombre único y lo deja seleccionado (null si se alcanzó el límite). */
 export function crearEspacio(nombreBase) {
+  if (estado.espacios.length >= LIMITE_ESPACIOS) return null;
   const espacio = { id: generarId(), nombre: nombreUnico(nombreBase), fijado: false };
   estado.espacios.push(espacio);
   estado.espacioActivoId = espacio.id;
@@ -264,7 +363,8 @@ export function seleccionarNota(id) {
 export function agregarNota(nota) {
   nota._sucia = Boolean(nota.userId); // pendiente de subir si hay sesión
   estado.notas.push(nota);
-  estado.espacioActivoId = asegurarEspacio(nota.categoria).id;
+  // Con la distribución pendiente de la nube, el espacio se completa al recibirla
+  if (disenoListo()) estado.espacioActivoId = asegurarEspacio(nota.categoria).id;
   estado.notaActivaId = nota.id;
   aplicarOrden();
   guardarDiseno();
@@ -349,7 +449,7 @@ export function reemplazarNotasRemotas(remotas) {
     .forEach((n) => resultado.push({ ...n, archivo: null, _rev: 0, _revTexto: 0, _sucia: false }));
 
   estado.notas = resultado;
-  for (const n of resultado) asegurarEspacio(n.categoria);
+  if (disenoListo()) for (const n of resultado) asegurarEspacio(n.categoria);
   aplicarOrden();
   corregirSeleccion();
   guardarDiseno();
